@@ -1,8 +1,8 @@
-{% macro find_selected_nodes(parent_model) %}
-    {{ return(adapter.dispatch("find_selected_nodes", "upstream_prod")(parent_model)) }}
+{% macro find_selected_nodes(parent_model, parent_project) %}
+    {{ return(adapter.dispatch("find_selected_nodes", "upstream_prod")(parent_model, parent_project)) }}
 {% endmacro %}
 
-{% macro default__find_selected_nodes(parent_model) %}
+{% macro default__find_selected_nodes(parent_model, parent_project) %}
     /*******************
     Note on selection & tests
 
@@ -31,7 +31,13 @@
     {% set selected_tests = [] %}
     {% for res in selected_resources %}
         {% if not res.startswith("test.") %}
-            {% do selected.append(res.split(".")[2]) %}
+            -- Get model name only when ref had only one arg
+            {% if parent_project is none %}
+                {% do selected.append(res.split(".")[2]) %}
+            -- Get project.model when ref had two args
+            {% else %}
+                {% do selected.append(res.partition(".")[2]) %}
+            {% endif %}
         {% else %}
             {% do selected_tests.append(res) %}
         {% endif %}
@@ -41,12 +47,16 @@
     {% for test in selected_tests %}
         {% set test_node = graph.nodes[test] %}
         {% for test_ref in test_node.refs %}
-            {% if parent_model == test_ref.name %}
-                {% do selected.append(parent_model) %}
+            {% if test_ref.name == parent_model %}
+                {% if parent_project is none %}
+                    {% do selected.append(parent_model) %}
+                {% elif test_ref.package == parent_project %}
+                    {% do selected.append(parent_project ~ "." ~ parent_model) %}
+                {% endif %}
             {% endif %}
         {% endfor %}
     {% endfor %}
 
-    {{ return(selected) }}
+    {{ return(set(selected)) }}
 
 {% endmacro %}
